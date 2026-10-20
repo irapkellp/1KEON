@@ -1,23 +1,4 @@
-'use strict';
-
-const express = require('express');
-const session = require('express-session');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { DatabaseSync } = require('node:sqlite');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const APP_NAME = 'OMSHAJ';
-
-if (!process.env.SESSION_SECRET ||
-    process.env.SESSION_SECRET.length < 32) {
-    throw new Error('SESSION_SECRET igomba kugira nibura inyuguti 32.');
-}
-
-const db = new DatabaseSync(
-    process.env.DB_PATH || './omshaj.db'
-);
+/* DATABASE TABLES */
 
 db.exec(`
     PRAGMA foreign_keys = ON;
@@ -37,6 +18,7 @@ db.exec(`
         content TEXT DEFAULT '',
         media_url TEXT DEFAULT '',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
         FOREIGN KEY(user_id) REFERENCES users(id)
             ON DELETE CASCADE
     );
@@ -44,9 +26,12 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS follows (
         follower_id INTEGER NOT NULL,
         following_id INTEGER NOT NULL,
+
         PRIMARY KEY(follower_id, following_id),
+
         FOREIGN KEY(follower_id) REFERENCES users(id)
             ON DELETE CASCADE,
+
         FOREIGN KEY(following_id) REFERENCES users(id)
             ON DELETE CASCADE
     );
@@ -54,9 +39,12 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS likes (
         user_id INTEGER NOT NULL,
         post_id INTEGER NOT NULL,
+
         PRIMARY KEY(user_id, post_id),
+
         FOREIGN KEY(user_id) REFERENCES users(id)
             ON DELETE CASCADE,
+
         FOREIGN KEY(post_id) REFERENCES posts(id)
             ON DELETE CASCADE
     );
@@ -67,25 +55,33 @@ db.exec(`
         post_id INTEGER NOT NULL,
         content TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
         FOREIGN KEY(user_id) REFERENCES users(id)
             ON DELETE CASCADE,
+
         FOREIGN KEY(post_id) REFERENCES posts(id)
             ON DELETE CASCADE
     );
 `);
+
+
+/* REQUEST MIDDLEWARE */
 
 app.use(express.urlencoded({
     extended: false,
     limit: '100kb'
 }));
 
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({
+    limit: '100kb'
+}));
 
 app.use(session({
     name: 'omshaj.sid',
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+
     cookie: {
         httpOnly: true,
         sameSite: 'lax',
@@ -93,6 +89,9 @@ app.use(session({
         maxAge: 7 * 24 * 60 * 60 * 1000
     }
 }));
+
+
+/* HTML ESCAPING */
 
 function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -104,14 +103,23 @@ function escapeHtml(value) {
     })[char]);
 }
 
+
+/* CURRENT USER */
+
 function currentUser(req) {
-    if (!req.session.userId) return null;
+    if (!req.session.userId) {
+        return null;
+    }
 
     return db.prepare(`
         SELECT id, username, email
-        FROM users WHERE id = ?
+        FROM users
+        WHERE id = ?
     `).get(req.session.userId) || null;
 }
+
+
+/* REQUIRE LOGIN */
 
 function requireLogin(req, res, next) {
     if (!currentUser(req)) {
@@ -121,6 +129,9 @@ function requireLogin(req, res, next) {
     next();
 }
 
+
+/* PAGE TEMPLATE */
+
 function page(title, content, user = null) {
     const navigation = user
         ? `
@@ -128,42 +139,77 @@ function page(title, content, user = null) {
             <a href="/create">Create Post</a>
             <a href="/search">Search People</a>
             <a href="/logout">Logout</a>
-          `
+        `
         : `
             <a href="/">Home</a>
             <a href="/login">Login</a>
             <a href="/register">Register</a>
-          `;
+        `;
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(title)} | OMSHAJ</title>
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+>
+
+<title>${escapeHtml(title)} | 1KEON</title>
+
 <style>
 :root {
     --green: #087f3e;
     --yellow: #ffd629;
     --background: #f4f7f4;
+    --text: #202820;
 }
-* { box-sizing: border-box; }
+
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     font-family: Arial, sans-serif;
     background: var(--background);
-    color: #202820;
+    color: var(--text);
 }
+
 header {
     background: var(--green);
     color: white;
     padding: 16px;
     border-bottom: 5px solid var(--yellow);
 }
-header h1 { margin: 0 0 12px; }
-nav { display: flex; gap: 14px; flex-wrap: wrap; }
-nav a { color: white; text-decoration: none; font-weight: bold; }
-main { max-width: 760px; margin: 22px auto; padding: 0 14px; }
+
+header h1 {
+    margin: 0 0 12px;
+}
+
+nav {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+main {
+    max-width: 760px;
+    margin: 22px auto;
+    padding: 0 14px;
+}
+
 .card {
     background: white;
     padding: 18px;
@@ -171,7 +217,11 @@ main { max-width: 760px; margin: 22px auto; padding: 0 14px; }
     border-radius: 12px;
     box-shadow: 0 2px 8px #0000000c;
 }
-input, textarea, select, button {
+
+input,
+textarea,
+select,
+button {
     width: 100%;
     padding: 12px;
     margin: 7px 0;
@@ -179,7 +229,14 @@ input, textarea, select, button {
     border-radius: 7px;
     font-size: 16px;
 }
-button, .button {
+
+textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+button,
+.button {
     background: var(--green);
     color: white;
     border: 0;
@@ -189,6 +246,12 @@ button, .button {
     padding: 12px;
     border-radius: 7px;
 }
+
+button:hover,
+.button:hover {
+    opacity: 0.9;
+}
+
 .media {
     display: block;
     max-width: 100%;
@@ -196,43 +259,109 @@ button, .button {
     margin: 12px 0;
     border-radius: 8px;
 }
-.muted { color: #666; font-size: 13px; }
-footer { text-align: center; padding: 24px; }
+
+video.media {
+    width: 100%;
+    background: #000;
+}
+
+audio.media {
+    width: 100%;
+}
+
+.muted {
+    color: #666;
+    font-size: 13px;
+}
+
+footer {
+    text-align: center;
+    padding: 24px;
+}
+
+@media (max-width: 480px) {
+    header {
+        padding: 12px;
+    }
+
+    nav {
+        gap: 10px;
+    }
+
+    main {
+        margin-top: 14px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+}
 </style>
 </head>
+
 <body>
+
 <header>
-    <h1>💚 OMSHAJ 💛</h1>
+    <h1>💚 1KEON 💛</h1>
+
     <p>Connect, Share, and Discover.</p>
-    <nav>${navigation}</nav>
+
+    <nav>
+        ${navigation}
+    </nav>
 </header>
-<main>${content}</main>
-<footer>OMSHAJ © ${new Date().getFullYear()}</footer>
+
+<main>
+    ${content}
+</main>
+
+<footer>
+    1KEON © ${new Date().getFullYear()}
+</footer>
+
 </body>
 </html>`;
 }
+
+
+/* RENDER PAGE */
 
 function render(res, title, content, user = null) {
     res.send(page(title, content, user));
 }
 
+
+/* DISPLAY MESSAGE */
+
 function message(res, text, user = null) {
     render(
         res,
         'Message',
-        `<section class="card"><p>${escapeHtml(text)}</p>
-        <a class="button" href="/">Back Home</a></section>`,
+        `
+        <section class="card">
+            <p>${escapeHtml(text)}</p>
+
+            <a class="button" href="/">
+                Back Home
+            </a>
+        </section>
+        `,
         user
     );
 }
 
+
+/* CSRF PROTECTION */
+
 function csrfToken(req) {
     if (!req.session.csrfToken) {
-        req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+        req.session.csrfToken =
+            crypto.randomBytes(32).toString('hex');
     }
 
     return req.session.csrfToken;
 }
+
 
 function checkToken(req, res, next) {
     const submitted = req.body._token;
@@ -247,16 +376,25 @@ function checkToken(req, res, next) {
             Buffer.from(expected)
         )
     ) {
-        return res.status(403).send('Invalid request token. Refresh and retry.');
+        return res.status(403).send(
+            'Invalid request token. Refresh and retry.'
+        );
     }
 
     next();
 }
 
+
 function tokenField(req) {
-    return `<input type="hidden" name="_token"
-        value="${escapeHtml(csrfToken(req))}">`;
+    return `
+        <input
+            type="hidden"
+            name="_token"
+            value="${escapeHtml(csrfToken(req))}"
+        >
+    `;
 }
+
 
 /* HOME AND FEED */
 
@@ -267,492 +405,1385 @@ app.get('/', (req, res) => {
         SELECT
             posts.*,
             users.username,
-            (SELECT COUNT(*) FROM likes
-             WHERE likes.post_id = posts.id) AS like_count,
-            (SELECT COUNT(*) FROM comments
-             WHERE comments.post_id = posts.id) AS comment_count
+
+            (
+                SELECT COUNT(*)
+                FROM likes
+                WHERE likes.post_id = posts.id
+            ) AS like_count,
+
+            (
+                SELECT COUNT(*)
+                FROM comments
+                WHERE comments.post_id = posts.id
+            ) AS comment_count
+
         FROM posts
-        JOIN users ON users.id = posts.user_id
+
+        JOIN users
+            ON users.id = posts.user_id
+
         ORDER BY posts.id DESC
+
         LIMIT 50
     `).all();
+
 
     const postHtml = posts.map(post => {
         let media = '';
 
         if (post.media_url && post.type === 'photo') {
-            media = `<img class="media"
-                src="${escapeHtml(post.media_url)}"
-                alt="Post photo" loading="lazy">`;
+            media = `
+                <img
+                    class="media"
+                    src="${escapeHtml(post.media_url)}"
+                    alt="Post photo"
+                    loading="lazy"
+                >
+            `;
         }
 
         if (post.media_url && post.type === 'video') {
-            media = `<video class="media" controls
-                src="${escapeHtml(post.media_url)}"></video>`;
+            media = `
+                <video
+                    class="media"
+                    controls
+                    playsinline
+                    preload="metadata"
+                    src="${escapeHtml(post.media_url)}"
+                ></video>
+            `;
         }
 
         if (post.media_url && post.type === 'audio') {
-            media = `<audio class="media" controls
-                src="${escapeHtml(post.media_url)}"></audio>`;
+            media = `
+                <audio
+                    class="media"
+                    controls
+                    src="${escapeHtml(post.media_url)}"
+                ></audio>
+            `;
         }
 
         if (post.type === 'story') {
-            media = `<div class="card">
-                <strong>📖 STORY</strong>
-                <p>${escapeHtml(post.content)}</p>
-                ${post.media_url
-                    ? `<a href="${escapeHtml(post.media_url)}"
-                        target="_blank" rel="noopener">Open media</a>`
-                    : ''}
-            </div>`;
+            media = `
+                <div class="card">
+                    <strong>📖 STORY</strong>
+
+                    <p>${escapeHtml(post.content)}</p>
+
+                    ${post.media_url ? `
+                        <a
+                            href="${escapeHtml(post.media_url)}"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Open media
+                        </a>
+                    ` : ''}
+                </div>
+            `;
         }
 
-        const likeButton = user ? `
-            <form method="post" action="/like/${post.id}">
-                ${tokenField(req)}
-                <button type="submit">❤️ Like (${post.like_count})</button>
-            </form>
-        ` : `<p>❤️ ${post.like_count} likes</p>`;
 
-        const commentForm = user ? `
-            <form method="post" action="/comment/${post.id}">
-                ${tokenField(req)}
-                <input name="content" maxlength="1000"
-                    placeholder="Write a comment..." required>
-                <button type="submit">Comment</button>
-            </form>
-        ` : '';
+        const likeButton = user
+            ? `
+                <form
+                    method="post"
+                    action="/like/${post.id}"
+                >
+                    ${tokenField(req)}
+
+                    <button type="submit">
+                        ❤️ Like (${post.like_count})
+                    </button>
+                </form>
+            `
+            : `
+                <p>❤️ ${post.like_count} likes</p>
+            `;
+
+
+        const commentForm = user
+            ? `
+                <form
+                    method="post"
+                    action="/comment/${post.id}"
+                >
+                    ${tokenField(req)}
+
+                    <input
+                        name="content"
+                        maxlength="1000"
+                        placeholder="Write a comment..."
+                        required
+                    >
+
+                    <button type="submit">
+                        Comment
+                    </button>
+                </form>
+            `
+            : '';
+
 
         const comments = db.prepare(`
-            SELECT comments.content, users.username
+            SELECT
+                comments.content,
+                users.username
+
             FROM comments
-            JOIN users ON users.id = comments.user_id
+
+            JOIN users
+                ON users.id = comments.user_id
+
             WHERE comments.post_id = ?
+
             ORDER BY comments.id DESC
+
             LIMIT 5
         `).all(post.id).map(comment => `
-            <p><strong>@${escapeHtml(comment.username)}</strong>:
-            ${escapeHtml(comment.content)}</p>
+            <p>
+                <strong>
+                    @${escapeHtml(comment.username)}
+                </strong>:
+
+                ${escapeHtml(comment.content)}
+            </p>
         `).join('');
 
+
         return `
-        <article class="card">
-            <p><strong>@${escapeHtml(post.username)}</strong>
-            <span class="muted"> · ${escapeHtml(post.type)}</span></p>
-            <p>${escapeHtml(post.content)}</p>
-            ${media}
-            ${likeButton}
-            <p>💬 ${post.comment_count} comments</p>
-            ${comments}
-            ${commentForm}
-        </article>`;
+            <article class="card">
+
+                <p>
+                    <strong>
+                        @${escapeHtml(post.username)}
+                    </strong>
+
+                    <span class="muted">
+                        · ${escapeHtml(post.type)}
+                    </span>
+                </p>
+
+                <p>
+                    ${escapeHtml(post.content)}
+                </p>
+
+                ${media}
+
+                ${likeButton}
+
+                <p>
+                    💬 ${post.comment_count} comments
+                </p>
+
+                ${comments}
+
+                ${commentForm}
+
+            </article>
+        `;
     }).join('');
 
-    render(res, 'Home', `
+
+    render(
+        res,
+        'Home',
+        `
         ${user ? `
             <section class="card">
-                <h2>Welcome, @${escapeHtml(user.username)}!</h2>
-                <p>Share your world with OMSHAJ.</p>
-                <a class="button" href="/create">＋ Create Post</a>
+
+                <h2>
+                    Welcome, @${escapeHtml(user.username)}!
+                </h2>
+
+                <p>
+                    Share your world with 1KEON.
+                </p>
+
+                <a class="button" href="/create">
+                    ＋ Create Post
+                </a>
+
             </section>
         ` : `
             <section class="card">
-                <h2>Welcome to OMSHAJ!</h2>
-                <p>Connect, Share, and Discover.</p>
-                <a class="button" href="/register">Join OMSHAJ</a>
+
+                <h2>
+                    Welcome to 1KEON!
+                </h2>
+
+                <p>
+                    Connect, Share, and Discover.
+                </p>
+
+                <a class="button" href="/register">
+                    Join 1KEON
+                </a>
+
             </section>
         `}
-        <h2>Latest Posts</h2>
-        ${postHtml || '<section class="card">No posts yet. Be the first to share!</section>'}
-    `, user);
-});
 
-/* REGISTER */
+        <h2>Latest Posts</h2>
+
+        ${postHtml || `
+            <section class="card">
+                No posts yet. Be the first to share!
+            </section>
+        `}
+        `,
+        user
+    );
+});
+/* ================================
+   REGISTER — KWANDIKISHA KONTI
+================================ */
 
 app.get('/register', (req, res) => {
-    render(res, 'Register', `
+    render(res, 'Create Account', `
         <section class="card">
-            <h2>Create Account</h2>
+            <h2>Join 1KEON</h2>
+
             <form method="post" action="/register">
                 ${tokenField(req)}
-                <input name="username" minlength="3" maxlength="24"
-                    pattern="[A-Za-z0-9_]+" placeholder="Username"
-                    autocomplete="username" required>
-                <input name="email" type="email" maxlength="254"
-                    placeholder="Email" autocomplete="email" required>
-                <input name="password" type="password" minlength="10"
-                    maxlength="72" placeholder="Password (10+ characters)"
-                    autocomplete="new-password" required>
-                <button type="submit">Register</button>
+
+                <label>Username</label>
+                <input
+                    type="text"
+                    name="username"
+                    minlength="3"
+                    maxlength="30"
+                    required
+                    autocomplete="username"
+                    placeholder="Hitamo username"
+                >
+
+                <label>Email</label>
+                <input
+                    type="email"
+                    name="email"
+                    maxlength="254"
+                    required
+                    autocomplete="email"
+                    placeholder="Andika email yawe"
+                >
+
+                <label>Password</label>
+                <input
+                    type="password"
+                    name="password"
+                    minlength="8"
+                    maxlength="128"
+                    required
+                    autocomplete="new-password"
+                    placeholder="Nibura inyuguti 8"
+                >
+
+                <button type="submit">Create Account</button>
             </form>
+
+            <p>
+                Usanzwe ufite konti?
+                <a href="/login">Injira hano</a>
+            </p>
         </section>
     `, currentUser(req));
 });
 
-app.post('/register', checkToken, async (req, res, next) => {
+app.post('/register', checkToken, (req, res, next) => {
     try {
         const username = String(req.body.username || '').trim();
-        const email = String(req.body.email || '').trim().toLowerCase();
+        const email = String(req.body.email || '')
+            .trim()
+            .toLowerCase();
         const password = String(req.body.password || '');
 
-        if (!/^[A-Za-z0-9_]{3,24}$/.test(username)) {
-            return message(res, 'Username igomba kugira inyuguti 3–24.');
+        if (
+            username.length < 3 ||
+            username.length > 30 ||
+            !/^[a-zA-Z0-9_.-]+$/.test(username)
+        ) {
+            return message(
+                res,
+                'Ikosa',
+                'Username igomba kugira inyuguti 3–30, imibare, utudomo cyangwa uturongo gusa.',
+                currentUser(req)
+            );
         }
 
-        if (email.length > 254 || !email.includes('@')) {
-            return message(res, 'Email ntabwo yemewe.');
+        if (
+            email.length > 254 ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+        ) {
+            return message(
+                res,
+                'Ikosa',
+                'Andika email nyayo.',
+                currentUser(req)
+            );
         }
 
-        if (password.length < 10 || password.length > 72) {
-            return message(res, 'Password igomba kugira inyuguti 10–72.');
+        if (password.length < 8 || password.length > 128) {
+            return message(
+                res,
+                'Ikosa',
+                'Password igomba kugira inyuguti nibura 8 kandi ntirenze 128.',
+                currentUser(req)
+            );
         }
 
-        const hash = await bcrypt.hash(password, 12);
+        const existing = db.prepare(`
+            SELECT id
+            FROM users
+            WHERE lower(username) = lower(?)
+               OR lower(email) = lower(?)
+            LIMIT 1
+        `).get(username, email);
 
-        db.prepare(`
-            INSERT INTO users(username, email, password)
+        if (existing) {
+            return message(
+                res,
+                'Konti irahari',
+                'Username cyangwa email byamaze gukoreshwa. Gerageza ibindi.',
+                currentUser(req)
+            );
+        }
+
+        const passwordHash = bcrypt.hashSync(password, 12);
+
+        const result = db.prepare(`
+            INSERT INTO users (
+                username,
+                email,
+                password_hash
+            )
             VALUES (?, ?, ?)
-        `).run(username, email, hash);
+        `).run(username, email, passwordHash);
 
-        res.redirect('/login');
-    } catch (error) {
-        if (String(error.message).includes('UNIQUE')) {
-            return message(res, 'Username cyangwa email isanzwe ikoreshwa.');
+        req.session.regenerate((err) => {
+            if (err) return next(err);
+
+            req.session.userId = Number(result.lastInsertRowid);
+
+            req.session.save((saveErr) => {
+                if (saveErr) return next(saveErr);
+                return res.redirect('/');
+            });
+        });
+    } catch (err) {
+        if (
+            err &&
+            (
+                String(err.message).includes('UNIQUE constraint failed') ||
+                String(err.message).includes('SQLITE_CONSTRAINT')
+            )
+        ) {
+            return message(
+                res,
+                'Konti irahari',
+                'Iyo username cyangwa email irakoreshwa. Gerageza ibindi.',
+                currentUser(req)
+            );
         }
 
-        next(error);
+        next(err);
     }
 });
 
-/* LOGIN */
+
+/* ================================
+   LOGIN — KWINJIRA
+================================ */
 
 app.get('/login', (req, res) => {
     render(res, 'Login', `
         <section class="card">
-            <h2>Login</h2>
+            <h2>Login to 1KEON</h2>
+
             <form method="post" action="/login">
                 ${tokenField(req)}
-                <input name="username" placeholder="Username or email"
-                    autocomplete="username" required>
-                <input name="password" type="password"
-                    placeholder="Password" autocomplete="current-password"
-                    required>
+
+                <label>Email cyangwa Username</label>
+                <input
+                    type="text"
+                    name="identity"
+                    required
+                    maxlength="254"
+                    autocomplete="username"
+                    placeholder="Email cyangwa username"
+                >
+
+                <label>Password</label>
+                <input
+                    type="password"
+                    name="password"
+                    required
+                    maxlength="128"
+                    autocomplete="current-password"
+                    placeholder="Password yawe"
+                >
+
                 <button type="submit">Login</button>
             </form>
+
+            <p>
+                Nta konti ufite?
+                <a href="/register">Iyandikishe hano</a>
+            </p>
         </section>
     `, currentUser(req));
 });
 
-app.post('/login', checkToken, async (req, res, next) => {
+app.post('/login', checkToken, (req, res, next) => {
     try {
-        const identity = String(req.body.username || '').trim();
+        const identity = String(req.body.identity || '').trim();
         const password = String(req.body.password || '');
 
-        const user = db.prepare(`
-            SELECT * FROM users
-            WHERE username = ? COLLATE NOCASE
-               OR email = ? COLLATE NOCASE
-        `).get(identity, identity);
-
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return message(res, 'Login yanze. Reba username na password.');
+        if (!identity || !password) {
+            return message(
+                res,
+                'Login',
+                'Uzuza username cyangwa email na password.',
+                currentUser(req)
+            );
         }
 
-        req.session.regenerate(error => {
-            if (error) return next(error);
+        const user = db.prepare(`
+            SELECT *
+            FROM users
+            WHERE lower(username) = lower(?)
+               OR lower(email) = lower(?)
+            LIMIT 1
+        `).get(identity, identity);
+
+        if (
+            !user ||
+            !bcrypt.compareSync(password, user.password_hash)
+        ) {
+            return message(
+                res,
+                'Login yanze',
+                'Username, email cyangwa password si byo.',
+                null
+            );
+        }
+
+        req.session.regenerate((err) => {
+            if (err) return next(err);
 
             req.session.userId = user.id;
-            req.session.csrfToken = crypto.randomBytes(32).toString('hex');
 
-            res.redirect('/');
+            req.session.save((saveErr) => {
+                if (saveErr) return next(saveErr);
+                return res.redirect('/');
+            });
         });
-    } catch (error) {
-        next(error);
+    } catch (err) {
+        next(err);
     }
 });
 
-/* LOGOUT */
+
+/* ================================
+   LOGOUT — GUSOHOKA
+================================ */
 
 app.get('/logout', (req, res) => {
-    render(res, 'Logout', `
-        <section class="card">
-            <h2>Logout</h2>
-            <form method="post" action="/logout">
-                ${tokenField(req)}
-                <button type="submit">Confirm Logout</button>
-            </form>
-        </section>
-    `, currentUser(req));
-});
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+            return res.redirect('/');
+        }
 
-app.post('/logout', checkToken, (req, res, next) => {
-    req.session.destroy(error => {
-        if (error) return next(error);
         res.clearCookie('omshaj.sid');
-        res.redirect('/');
+        return res.redirect('/login');
     });
 });
 
-/* CREATE POST */
+app.post('/logout', checkToken, (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            console.error('Logout error:', err);
+            return res.redirect('/');
+        }
+
+        res.clearCookie('omshaj.sid');
+        return res.redirect('/login');
+    });
+});
+
+
+/* ================================
+   CREATE POST — FORM
+================================ */
 
 app.get('/create', requireLogin, (req, res) => {
     render(res, 'Create Post', `
         <section class="card">
             <h2>Create a Post</h2>
-            <p class="muted">
-                In this initial version, use a publicly accessible media URL.
+
+            <p>
+                Sangiza ubutumwa, story, ifoto cyangwa video.
             </p>
-            <form method="post" action="/create">
+
+            <form
+                method="post"
+                action="/create"
+                enctype="multipart/form-data"
+            >
                 ${tokenField(req)}
+
                 <label>Post type</label>
+
                 <select name="type" required>
                     <option value="text">Text</option>
                     <option value="story">Story</option>
                     <option value="photo">Photo</option>
-                    <option value="audio">Audio</option>
+                    <option value="audio">Audio stream</option>
                     <option value="video">Video</option>
                 </select>
-                <label>Text or caption</label>
-                <textarea name="content" maxlength="5000"
-                    placeholder="What would you like to share?"></textarea>
-                <label>Media URL (for photo/audio/video, optional)</label>
-                <input name="media_url" type="url" maxlength="2000"
-                    placeholder="https://example.com/media">
+
+                <label>Text cyangwa caption</label>
+
+                <textarea
+                    name="content"
+                    maxlength="5000"
+                    placeholder="Andika ibyo ushaka gusangiza abandi..."
+                ></textarea>
+
+                <label>Hitamo ifoto cyangwa video muri telefone</label>
+
+                <input
+                    name="media"
+                    type="file"
+                    accept="image/*,video/*"
+                >
+
+                <p class="muted">
+                    Ushobora guhitamo ifoto cyangwa video muri Gallery ya telefone.
+                    Ingano ntigomba kurenza 50 MB.
+                </p>
+
+                <label>Media URL (optional)</label>
+
+                <input
+                    name="media_url"
+                    type="url"
+                    maxlength="2000"
+                    placeholder="https://example.com/media"
+                >
+
                 <button type="submit">Publish Post</button>
             </form>
         </section>
     `, currentUser(req));
 });
 
-app.post('/create', requireLogin, checkToken, (req, res) => {
-    const type = String(req.body.type || '');
-    const content = String(req.body.content || '').trim();
-    const mediaUrl = String(req.body.media_url || '').trim();
 
-    const allowedTypes = ['text', 'story', 'photo', 'audio', 'video'];
+/* ================================
+   CREATE POST — SAVE
+================================ */
 
-    if (!allowedTypes.includes(type)) {
-        return message(res, 'Post type ntabwo yemewe.', currentUser(req));
-    }
+app.post(
+    '/create',
+    requireLogin,
+    upload.single('media'),
+    checkToken,
+    (req, res, next) => {
+        let uploadedFile = req.file || null;
 
-    if (!content && !mediaUrl) {
-        return message(res, 'Andika ubutumwa cyangwa ushyiremo media URL.',
-            currentUser(req));
-    }
-
-    if (content.length > 5000 || mediaUrl.length > 2000) {
-        return message(res, 'Post irarenze ingano yemewe.', currentUser(req));
-    }
-
-    if (mediaUrl) {
         try {
-            const url = new URL(mediaUrl);
+            const type = String(req.body.type || '').trim();
 
-            if (!['http:', 'https:'].includes(url.protocol)) {
-                throw new Error('Invalid URL');
+            const content = String(
+                req.body.content || ''
+            ).trim();
+
+            const enteredMediaUrl = String(
+                req.body.media_url || ''
+            ).trim();
+
+            const allowedTypes = [
+                'text',
+                'story',
+                'photo',
+                'audio',
+                'video'
+            ];
+
+            if (!allowedTypes.includes(type)) {
+                if (uploadedFile) {
+                    fs.unlink(uploadedFile.path, () => {});
+                }
+
+                return message(
+                    res,
+                    'Ikosa',
+                    'Hitamo ubwoko bwa post bwemewe.',
+                    currentUser(req)
+                );
             }
-        } catch {
-            return message(res, 'Media URL ntabwo yemewe.', currentUser(req));
+
+            if (content.length > 5000) {
+                if (uploadedFile) {
+                    fs.unlink(uploadedFile.path, () => {});
+                }
+
+                return message(
+                    res,
+                    'Ikosa',
+                    'Ubutumwa ntibugomba kurenza inyuguti 5000.',
+                    currentUser(req)
+                );
+            }
+
+            if (enteredMediaUrl.length > 2000) {
+                if (uploadedFile) {
+                    fs.unlink(uploadedFile.path, () => {});
+                }
+
+                return message(
+                    res,
+                    'Ikosa',
+                    'Media URL ni ndende cyane.',
+                    currentUser(req)
+                );
+            }
+
+            if (!content && !enteredMediaUrl && !uploadedFile) {
+                return message(
+                    res,
+                    'Post irimo ubusa',
+                    'Andika ubutumwa cyangwa uhitemo ifoto/video.',
+                    currentUser(req)
+                );
+            }
+
+            /*
+             * PHOTO / VIDEO UPLOAD
+             */
+
+            if (uploadedFile) {
+                const isImage = uploadedFile.mimetype.startsWith('image/');
+                const isVideo = uploadedFile.mimetype.startsWith('video/');
+
+                if (!isImage && !isVideo) {
+                    fs.unlink(uploadedFile.path, () => {});
+
+                    return message(
+                        res,
+                        'Ikosa',
+                        'Ushobora kohereza amafoto na video gusa.',
+                        currentUser(req)
+                    );
+                }
+
+                if (type === 'photo' && !isImage) {
+                    fs.unlink(uploadedFile.path, () => {});
+
+                    return message(
+                        res,
+                        'Ikosa',
+                        'Wahisemo Photo. Hitamo ifoto, cyangwa uhindure Post type ibe Video.',
+                        currentUser(req)
+                    );
+                }
+
+                if (type === 'video' && !isVideo) {
+                    fs.unlink(uploadedFile.path, () => {});
+
+                    return message(
+                        res,
+                        'Ikosa',
+                        'Wahisemo Video. Hitamo video, cyangwa uhindure Post type ibe Photo.',
+                        currentUser(req)
+                    );
+                }
+
+                if (
+                    !['photo', 'video'].includes(type)
+                ) {
+                    fs.unlink(uploadedFile.path, () => {});
+
+                    return message(
+                        res,
+                        'Hitamo Post type',
+                        'Ifoto cyangwa video bigomba kugira ubwoko bwa Photo cyangwa Video.',
+                        currentUser(req)
+                    );
+                }
+            }
+
+            /*
+             * VALIDATE OPTIONAL EXTERNAL URL
+             */
+
+            if (enteredMediaUrl && !uploadedFile) {
+                let parsedUrl;
+
+                try {
+                    parsedUrl = new URL(enteredMediaUrl);
+                } catch {
+                    return message(
+                        res,
+                        'URL si yo',
+                        'Andika URL yuzuye itangirana na https:// cyangwa http://.',
+                        currentUser(req)
+                    );
+                }
+
+                if (
+                    !['http:', 'https:'].includes(parsedUrl.protocol)
+                ) {
+                    return message(
+                        res,
+                        'URL ntiyemewe',
+                        'Media URL igomba gukoresha HTTP cyangwa HTTPS.',
+                        currentUser(req)
+                    );
+                }
+            }
+
+            /*
+             * FILE URL OR EXTERNAL URL
+             */
+
+            const mediaUrl = uploadedFile
+                ? '/uploads/' + uploadedFile.filename
+                : (enteredMediaUrl || null);
+
+            /*
+             * KEEP THE EXISTING DATABASE STRUCTURE
+             */
+
+            const result = db.prepare(`
+                INSERT INTO posts (
+                    user_id,
+                    type,
+                    content,
+                    media_url
+                )
+                VALUES (?, ?, ?, ?)
+            `).run(
+                req.session.userId,
+                type,
+                content,
+                mediaUrl
+            );
+
+            return res.redirect('/');
+
+        } catch (err) {
+            if (uploadedFile) {
+                fs.unlink(uploadedFile.path, () => {});
+            }
+
+            return next(err);
         }
     }
+);
+/* =========================================
+   LIKE / UNLIKE POSTS
+========================================= */
 
-    db.prepare(`
-        INSERT INTO posts(user_id, type, content, media_url)
-        VALUES (?, ?, ?, ?)
-    `).run(req.session.userId, type, content, mediaUrl);
+app.post(
+    '/posts/:id/like',
+    requireLogin,
+    checkToken,
+    (req, res, next) => {
+        try {
+            const postId = Number(req.params.id);
 
-    res.redirect('/');
-});
+            if (!Number.isSafeInteger(postId) || postId <= 0) {
+                return message(
+                    res,
+                    'Ikosa',
+                    'Post wasabwe ntiboneka.',
+                    currentUser(req)
+                );
+            }
 
-/* LIKE */
+            const post = db.prepare(`
+                SELECT id
+                FROM posts
+                WHERE id = ?
+            `).get(postId);
 
-app.post('/like/:id', requireLogin, checkToken, (req, res) => {
-    const postId = Number(req.params.id);
+            if (!post) {
+                return message(
+                    res,
+                    'Post ntiboneka',
+                    'Iyi post ishobora kuba yarasibwe.',
+                    currentUser(req)
+                );
+            }
 
-    if (!Number.isSafeInteger(postId) || postId < 1) {
-        return res.status(400).send('Invalid post ID.');
+            const existingLike = db.prepare(`
+                SELECT id
+                FROM likes
+                WHERE user_id = ? AND post_id = ?
+            `).get(req.session.userId, postId);
+
+            if (existingLike) {
+                db.prepare(`
+                    DELETE FROM likes
+                    WHERE user_id = ? AND post_id = ?
+                `).run(req.session.userId, postId);
+            } else {
+                db.prepare(`
+                    INSERT INTO likes (user_id, post_id)
+                    VALUES (?, ?)
+                `).run(req.session.userId, postId);
+            }
+
+            return res.redirect('/');
+
+        } catch (err) {
+            return next(err);
+        }
     }
+);
 
-    const post = db.prepare('SELECT id FROM posts WHERE id = ?')
-        .get(postId);
 
-    if (!post) {
-        return res.status(404).send('Post ntiyabonetse.');
+/* =========================================
+   ADD COMMENT
+========================================= */
+
+app.post(
+    '/posts/:id/comment',
+    requireLogin,
+    checkToken,
+    (req, res, next) => {
+        try {
+            const postId = Number(req.params.id);
+            const content = String(
+                req.body.content || ''
+            ).trim();
+
+            if (!Number.isSafeInteger(postId) || postId <= 0) {
+                return message(
+                    res,
+                    'Ikosa',
+                    'Post wasabwe ntiboneka.',
+                    currentUser(req)
+                );
+            }
+
+            if (!content || content.length > 2000) {
+                return message(
+                    res,
+                    'Comment',
+                    'Comment igomba kugira inyuguti 1–2000.',
+                    currentUser(req)
+                );
+            }
+
+            const post = db.prepare(`
+                SELECT id
+                FROM posts
+                WHERE id = ?
+            `).get(postId);
+
+            if (!post) {
+                return message(
+                    res,
+                    'Post ntiboneka',
+                    'Iyi post ntikiboneka.',
+                    currentUser(req)
+                );
+            }
+
+            db.prepare(`
+                INSERT INTO comments (
+                    user_id,
+                    post_id,
+                    content
+                )
+                VALUES (?, ?, ?)
+            `).run(
+                req.session.userId,
+                postId,
+                content
+            );
+
+            return res.redirect('/');
+
+        } catch (err) {
+            return next(err);
+        }
     }
+);
 
-    const existing = db.prepare(`
-        SELECT 1 FROM likes WHERE user_id = ? AND post_id = ?
-    `).get(req.session.userId, postId);
 
-    if (existing) {
-        db.prepare(`
-            DELETE FROM likes WHERE user_id = ? AND post_id = ?
-        `).run(req.session.userId, postId);
-    } else {
-        db.prepare(`
-            INSERT INTO likes(user_id, post_id) VALUES (?, ?)
-        `).run(req.session.userId, postId);
-    }
-
-    res.redirect('/');
-});
-
-/* COMMENTS */
-
-app.post('/comment/:id', requireLogin, checkToken, (req, res) => {
-    const postId = Number(req.params.id);
-    const content = String(req.body.content || '').trim();
-
-    if (!Number.isSafeInteger(postId) || postId < 1 ||
-        content.length < 1 || content.length > 1000) {
-        return message(res, 'Comment ntabwo yemewe.', currentUser(req));
-    }
-
-    const post = db.prepare('SELECT id FROM posts WHERE id = ?')
-        .get(postId);
-
-    if (!post) {
-        return res.status(404).send('Post ntiyabonetse.');
-    }
-
-    db.prepare(`
-        INSERT INTO comments(user_id, post_id, content)
-        VALUES (?, ?, ?)
-    `).run(req.session.userId, postId, content);
-
-    res.redirect('/');
-});
-
-/* SEARCH PEOPLE */
+/* =========================================
+   SEARCH PEOPLE
+========================================= */
 
 app.get('/search', (req, res) => {
-    const user = currentUser(req);
-    const query = String(req.query.q || '').trim().slice(0, 24);
-
+    const query = String(req.query.q || '').trim();
     let results = [];
 
-    if (query) {
+    if (query.length > 0 && query.length <= 100) {
         results = db.prepare(`
-            SELECT id, username FROM users
-            WHERE username LIKE ? ESCAPE '\\'
-            ORDER BY username
+            SELECT
+                users.id,
+                users.username,
+                (
+                    SELECT COUNT(*)
+                    FROM follows
+                    WHERE following_id = users.id
+                ) AS followers_count,
+                (
+                    SELECT COUNT(*)
+                    FROM follows
+                    WHERE follower_id = users.id
+                ) AS following_count
+            FROM users
+            WHERE lower(users.username) LIKE lower(?)
+            ORDER BY users.username COLLATE NOCASE
             LIMIT 50
-        `).all(
-            '%' + query.replace(/[\\%_]/g, '\\$&') + '%'
-        );
+        `).all('%' + query + '%');
     }
 
-    const people = results.map(person => `
-        <div class="card">
-            <strong>@${escapeHtml(person.username)}</strong>
-            ${user && user.id !== person.id ? `
-                <form method="post" action="/follow/${person.id}">
-                    ${tokenField(req)}
-                    <button type="submit">Follow / Unfollow</button>
-                </form>
-            ` : ''}
-        </div>
-    `).join('');
+    const me = currentUser(req);
 
-    render(res, 'Search', `
+    const resultsHtml = results.length
+        ? results.map(user => {
+            const isMe = me && Number(me.id) === Number(user.id);
+
+            let followButton = '';
+
+            if (me && !isMe) {
+                const following = db.prepare(`
+                    SELECT id
+                    FROM follows
+                    WHERE follower_id = ?
+                      AND following_id = ?
+                `).get(me.id, user.id);
+
+                followButton = `
+                    <form method="post"
+                          action="/users/${Number(user.id)}/follow">
+                        ${tokenField(req)}
+                        <button type="submit">
+                            ${following ? 'Unfollow' : 'Follow'}
+                        </button>
+                    </form>
+                `;
+            }
+
+            return `
+                <article class="card">
+                    <h3>
+                        <a href="/users/${Number(user.id)}">
+                            @${escapeHtml(user.username)}
+                        </a>
+                    </h3>
+
+                    <p>
+                        Followers: ${Number(user.followers_count)}
+                        · Following: ${Number(user.following_count)}
+                    </p>
+
+                    ${followButton}
+                </article>
+            `;
+        }).join('')
+        : '<p>Nta bantu babonetse. Gerageza irindi zina.</p>';
+
+    render(res, 'Search People', `
         <section class="card">
-            <h2>Find People</h2>
+            <h2>Search People</h2>
+
             <form method="get" action="/search">
-                <input name="q" value="${escapeHtml(query)}"
-                    placeholder="Search username">
+                <label>Shakisha username</label>
+
+                <input
+                    type="search"
+                    name="q"
+                    maxlength="100"
+                    value="${escapeHtml(query)}"
+                    placeholder="Andika izina..."
+                >
+
                 <button type="submit">Search</button>
             </form>
         </section>
-        ${people || (query ? '<p>No users found.</p>' : '')}
-    `, user);
+
+        <section>
+            ${resultsHtml}
+        </section>
+    `, me);
 });
 
-/* FOLLOW / UNFOLLOW */
 
-app.post('/follow/:id', requireLogin, checkToken, (req, res) => {
-    const targetId = Number(req.params.id);
+/* =========================================
+   FOLLOW / UNFOLLOW
+========================================= */
 
-    if (!Number.isSafeInteger(targetId) ||
-        targetId < 1 ||
-        targetId === req.session.userId) {
-        return message(res, 'User ID ntabwo yemewe.', currentUser(req));
+app.post(
+    '/users/:id/follow',
+    requireLogin,
+    checkToken,
+    (req, res, next) => {
+        try {
+            const targetId = Number(req.params.id);
+            const myId = Number(req.session.userId);
+
+            if (
+                !Number.isSafeInteger(targetId) ||
+                targetId <= 0 ||
+                targetId === myId
+            ) {
+                return message(
+                    res,
+                    'Follow',
+                    'Ntushobora gukurikira iyi konti.',
+                    currentUser(req)
+                );
+            }
+
+            const target = db.prepare(`
+                SELECT id
+                FROM users
+                WHERE id = ?
+            `).get(targetId);
+
+            if (!target) {
+                return message(
+                    res,
+                    'Konti ntiboneka',
+                    'Uyu muntu ntakiboneka.',
+                    currentUser(req)
+                );
+            }
+
+            const existing = db.prepare(`
+                SELECT id
+                FROM follows
+                WHERE follower_id = ?
+                  AND following_id = ?
+            `).get(myId, targetId);
+
+            if (existing) {
+                db.prepare(`
+                    DELETE FROM follows
+                    WHERE follower_id = ?
+                      AND following_id = ?
+                `).run(myId, targetId);
+            } else {
+                db.prepare(`
+                    INSERT INTO follows (
+                        follower_id,
+                        following_id
+                    )
+                    VALUES (?, ?)
+                `).run(myId, targetId);
+            }
+
+            const back = String(req.get('referer') || '');
+
+            if (
+                back.startsWith('https://' + req.get('host')) ||
+                back.startsWith('http://' + req.get('host'))
+            ) {
+                return res.redirect(back);
+            }
+
+            return res.redirect('/search');
+
+        } catch (err) {
+            return next(err);
+        }
     }
+);
 
-    const target = db.prepare('SELECT id FROM users WHERE id = ?')
-        .get(targetId);
 
-    if (!target) {
-        return res.status(404).send('User ntiyabonetse.');
+/* =========================================
+   USER PROFILE
+========================================= */
+
+app.get('/users/:id', (req, res, next) => {
+    try {
+        const userId = Number(req.params.id);
+
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
+            return res.status(404).send('User not found.');
+        }
+
+        const user = db.prepare(`
+            SELECT id, username
+            FROM users
+            WHERE id = ?
+        `).get(userId);
+
+        if (!user) {
+            return res.status(404).send('User not found.');
+        }
+
+        const followers = db.prepare(`
+            SELECT COUNT(*) AS total
+            FROM follows
+            WHERE following_id = ?
+        `).get(userId).total;
+
+        const following = db.prepare(`
+            SELECT COUNT(*) AS total
+            FROM follows
+            WHERE follower_id = ?
+        `).get(userId).total;
+
+        const me = currentUser(req);
+
+        let followButton = '';
+
+        if (me && Number(me.id) !== Number(user.id)) {
+            const isFollowing = db.prepare(`
+                SELECT id
+                FROM follows
+                WHERE follower_id = ?
+                  AND following_id = ?
+            `).get(me.id, userId);
+
+            followButton = `
+                <form method="post"
+                      action="/users/${Number(user.id)}/follow">
+                    ${tokenField(req)}
+                    <button type="submit">
+                        ${isFollowing ? 'Unfollow' : 'Follow'}
+                    </button>
+                </form>
+            `;
+        }
+
+        const posts = db.prepare(`
+            SELECT
+                posts.*,
+                users.username,
+                (
+                    SELECT COUNT(*)
+                    FROM likes
+                    WHERE likes.post_id = posts.id
+                ) AS likes_count,
+                (
+                    SELECT COUNT(*)
+                    FROM comments
+                    WHERE comments.post_id = posts.id
+                ) AS comments_count
+            FROM posts
+            JOIN users ON users.id = posts.user_id
+            WHERE posts.user_id = ?
+            ORDER BY posts.id DESC
+            LIMIT 50
+        `).all(userId);
+
+        const postsHtml = posts.map(post => {
+            let mediaHtml = '';
+
+            if (post.media_url) {
+                const safeUrl = escapeHtml(post.media_url);
+
+                if (post.type === 'photo') {
+                    mediaHtml = `
+                        <img
+                            src="${safeUrl}"
+                            alt="Post image"
+                            style="max-width:100%;height:auto"
+                        >
+                    `;
+                } else if (post.type === 'video') {
+                    mediaHtml = `
+                        <video
+                            controls
+                            playsinline
+                            style="max-width:100%;height:auto"
+                        >
+                            <source src="${safeUrl}">
+                        </video>
+                    `;
+                } else if (post.type === 'audio') {
+                    mediaHtml = `
+                        <audio controls style="width:100%">
+                            <source src="${safeUrl}">
+                        </audio>
+                    `;
+                } else {
+                    mediaHtml = `
+                        <p>
+                            <a href="${safeUrl}" target="_blank"
+                               rel="noopener noreferrer">
+                                Open media
+                            </a>
+                        </p>
+                    `;
+                }
+            }
+
+            const likeForm = me ? `
+                <form method="post"
+                      action="/posts/${Number(post.id)}/like">
+                    ${tokenField(req)}
+                    <button type="submit">Like / Unlike</button>
+                </form>
+            ` : '';
+
+            const commentForm = me ? `
+                <form method="post"
+                      action="/posts/${Number(post.id)}/comment">
+                    ${tokenField(req)}
+                    <textarea name="content"
+                              maxlength="2000"
+                              required
+                              placeholder="Andika comment..."></textarea>
+                    <button type="submit">Comment</button>
+                </form>
+            ` : '';
+
+            return `
+                <article class="card">
+                    <h3>${escapeHtml(post.type)}</h3>
+                    <p>${escapeHtml(post.content || '')}</p>
+                    ${mediaHtml}
+                    <p>
+                        Likes: ${Number(post.likes_count)}
+                        · Comments: ${Number(post.comments_count)}
+                    </p>
+                    ${likeForm}
+                    ${commentForm}
+                </article>
+            `;
+        }).join('');
+
+        render(res, '@' + user.username, `
+            <section class="card">
+                <h2>@${escapeHtml(user.username)}</h2>
+                <p>Followers: ${Number(followers)}</p>
+                <p>Following: ${Number(following)}</p>
+                ${followButton}
+            </section>
+
+            <h2>Posts</h2>
+
+            ${postsHtml || '<p>Nta post uyu muntu arashyiraho.</p>'}
+        `, me);
+
+    } catch (err) {
+        next(err);
     }
-
-    const existing = db.prepare(`
-        SELECT 1 FROM follows
-        WHERE follower_id = ? AND following_id = ?
-    `).get(req.session.userId, targetId);
-
-    if (existing) {
-        db.prepare(`
-            DELETE FROM follows
-            WHERE follower_id = ? AND following_id = ?
-        `).run(req.session.userId, targetId);
-    } else {
-        db.prepare(`
-            INSERT INTO follows(follower_id, following_id)
-            VALUES (?, ?)
-        `).run(req.session.userId, targetId);
-    }
-
-    res.redirect('/search');
 });
 
-/* HEALTH CHECK */
+
+/* =========================================
+   HEALTH CHECK
+========================================= */
 
 app.get('/health', (req, res) => {
-    res.json({
-        app: APP_NAME,
-        status: 'ok',
-        time: new Date().toISOString()
-    });
+    try {
+        db.prepare('SELECT 1 AS ok').get();
+
+        res.status(200).json({
+            status: 'ok',
+            app: '1KEON',
+            database: 'connected'
+        });
+    } catch (err) {
+        console.error('Health check failed:', err);
+
+        res.status(500).json({
+            status: 'error',
+            app: '1KEON',
+            database: 'unavailable'
+        });
+    }
 });
 
-/* 404 */
+
+/* =========================================
+   404 — PAGE NOT FOUND
+========================================= */
 
 app.use((req, res) => {
-    render(res, 'Not Found', `
-        <section class="card">
-            <h2>404 — Page Not Found</h2>
-            <a class="button" href="/">Return Home</a>
-        </section>
-    `, currentUser(req));
+    res.status(404).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1">
+            <title>Page Not Found — 1KEON</title>
+        </head>
+        <body style="font-family:Arial,sans-serif;padding:24px">
+            <h1>404 — Page Not Found</h1>
+            <p>Iyi page ntiyabonetse kuri 1KEON.</p>
+            <a href="/">Subira kuri Home</a>
+        </body>
+        </html>
+    `);
 });
 
-/* ERROR HANDLER */
 
-app.use((error, req, res, next) => {
-    console.error('OMSHAJ error:', error);
+/* =========================================
+   ERROR HANDLER
+========================================= */
 
-    if (res.headersSent) return next(error);
+app.use((err, req, res, next) => {
+    console.error('Application error:', err);
 
-    res.status(500).send(
-        'OMSHAJ encountered a server error. Please try again later.'
-    );
-});
+    if (res.headersSent) {
+        return next(err);
+    }
 
-/* START SERVER */
-
-const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`OMSHAJ running on port ${PORT}`);
-});
-
-function shutdown() {
-    server.close(() => {
-        try {
-            db.close();
-        } finally {
-            process.exit(0);
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).send(`
+                <h2>File nini cyane</h2>
+                <p>Hitamo ifoto cyangwa video itarenza 50 MB.</p>
+                <a href="/create">Subira kuri Create Post</a>
+            `);
         }
-    });
-}
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+        return res.status(400).send(`
+            <h2>Upload yanze</h2>
+            <p>Reba file wahisemo wongere ugerageze.</p>
+            <a href="/create">Subira kuri Create Post</a>
+        `);
+    }
+
+    if (
+        err.message ===
+        'Wemerewe kohereza amafoto na video gusa.'
+    ) {
+        return res.status(400).send(`
+            <h2>File ntiyemewe</h2>
+            <p>Ushobora kohereza amafoto na video gusa.</p>
+            <a href="/create">Subira kuri Create Post</a>
+        `);
+    }
+
+    res.status(500).send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1">
+            <title>Error — 1KEON</title>
+        </head>
+        <body style="font-family:Arial,sans-serif;padding:24px">
+            <h1>Habaye ikibazo</h1>
+            <p>Server yagize ikibazo. Ongera ugerageze nyuma.</p>
+            <a href="/">Subira kuri Home</a>
+        </body>
+        </html>
+    `);
+});
+
+
+/* =========================================
+   START SERVER
+========================================= */
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`1KEON is running on port ${PORT}`);
+});
