@@ -1,0 +1,17 @@
+{
+  "name": "omshaj",
+  "version": "1.0.0",
+  "description": "OMSHAJ - Connect, Share, and Discover",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.13.0 <27"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2"
+  }
+}
