@@ -1,7 +1,7 @@
 {
-  "name": "omshaj",
+  "name": "1keon",
   "version": "1.0.0",
-  "description": "OMSHAJ - Connect, Share, and Discover",
+  "description": "1KEON - Connect, Share, and Discover",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
